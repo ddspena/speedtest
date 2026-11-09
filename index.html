@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Speed Test</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 60%);
+    color: #e2e8f0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 20px;
+  }
+  .container { width: 100%; max-width: 560px; text-align: center; }
+  h1 { font-size: 22px; margin-bottom: 20px; font-weight: 600; opacity: .9; letter-spacing: .5px; }
+
+  /* ===== Info Koneksi ===== */
+  .conn-card {
+    background: rgba(30, 41, 59, .7);
+    border: 1px solid rgba(148, 163, 184, .12);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: left;
+  }
+  .conn-info { min-width: 0; flex: 1; }
+  .conn-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+  .conn-row:last-child { margin-bottom: 0; }
+  .conn-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; opacity: .5; font-weight: 600; min-width: 32px; }
+  .conn-value { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conn-refresh {
+    background: rgba(148, 163, 184, .1);
+    border: 1px solid rgba(148, 163, 184, .2);
+    color: #cbd5e1;
+    width: 34px; height: 34px;
+    border-radius: 10px; cursor: pointer; font-size: 16px; line-height: 1;
+    flex-shrink: 0; transition: background .15s, transform .15s;
+  }
+  .conn-refresh:hover { background: rgba(148, 163, 184, .2); }
+  .conn-refresh:active { transform: rotate(180deg); }
+  .conn-refresh:disabled { opacity: .4; cursor: wait; }
+
+  /* ===== Settings row (server + unit) ===== */
+  .settings-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 22px;
+    align-items: stretch;
+  }
+  .server-select {
+    flex: 1;
+    padding: 12px 40px 12px 16px;
+    background: rgba(30, 41, 59, .8);
+    color: #e2e8f0;
+    border: 1px solid rgba(148, 163, 184, .2);
+    border-radius: 12px;
+    font-size: 14px; font-weight: 500;
+    cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2394a3b8' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    transition: border-color .15s;
+    font-family: inherit;
+  }
+  .server-select:hover { border-color: rgba(148, 163, 184, .4); }
+  .server-select:disabled { opacity: .5; cursor: not-allowed; }
+  .server-select option { background: #1e293b; color: #e2e8f0; }
+
+  .unit-toggle {
+    display: inline-flex;
+    background: rgba(30, 41, 59, .8);
+    border: 1px solid rgba(148, 163, 184, .2);
+    border-radius: 12px;
+    padding: 4px;
+    flex-shrink: 0;
+  }
+  .unit-toggle button {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 12px; font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    font-family: inherit;
+  }
+  .unit-toggle button.active {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    color: white;
+  }
+  .unit-toggle button:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ===== Gauge ===== */
+  .gauge-wrap { position: relative; width: 320px; height: 320px; margin: 0 auto 24px; }
+  .gauge { width: 100%; height: 100%; transform: rotate(135deg); }
+  .gauge circle { fill: none; stroke-width: 14; }
+  .gauge .bg { stroke: #1e293b; }
+  .gauge .fg { stroke: url(#grad); stroke-linecap: round; transition: stroke-dashoffset .2s ease; }
+  .center-value { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+  .value { font-size: 60px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -2px; line-height: 1; }
+  .unit { font-size: 16px; opacity: .7; margin-top: 8px; font-weight: 500; }
+  .label { font-size: 12px; margin-top: 10px; opacity: .55; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 500; max-width: 200px; }
+
+  /* ===== Stats ===== */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
+  .stat { background: rgba(30, 41, 59, .7); padding: 14px 10px; border-radius: 12px; border: 1px solid rgba(148, 163, 184, .1); }
+  .stat .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat .l { font-size: 10px; opacity: .55; margin-top: 5px; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 500; }
+
+  /* ===== Start button ===== */
+  #startBtn {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    color: white; border: none;
+    padding: 14px 44px;
+    font-size: 15px; font-weight: 600;
+    border-radius: 50px; cursor: pointer;
+    transition: transform .15s, box-shadow .15s, opacity .15s;
+    box-shadow: 0 8px 24px -8px rgba(139, 92, 246, .5);
+    letter-spacing: .5px;
+    font-family: inherit;
+  }
+  #startBtn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 28px -8px rgba(139, 92, 246, .7); }
+  #startBtn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+  /* ===== History ===== */
+  .history-section {
+    margin-top: 32px;
+    background: rgba(30, 41, 59, .5);
+    border-radius: 16px;
+    padding: 18px;
+    border: 1px solid rgba(148, 163, 184, .1);
+    text-align: left;
+  }
+  .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .history-header h2 { font-size: 13px; font-weight: 600; opacity: .8; text-transform: uppercase; letter-spacing: 1.2px; }
+  .clear-btn {
+    font-size: 11px; padding: 6px 12px;
+    background: rgba(239, 68, 68, .15);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, .3);
+    border-radius: 8px; cursor: pointer;
+    font-weight: 500; transition: background .15s;
+    font-family: inherit;
+  }
+  .clear-btn:hover { background: rgba(239, 68, 68, .25); }
+  .clear-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  .history-list { max-height: 320px; overflow-y: auto; padding-right: 4px; }
+  .history-list::-webkit-scrollbar { width: 6px; }
+  .history-list::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, .3); border-radius: 3px; }
+
+  .history-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px;
+    background: rgba(15, 23, 42, .6);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    transition: background .15s;
+  }
+  .history-item:hover { background: rgba(30, 41, 59, .9); }
+  .hi-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: space-between;
+  }
+  .hi-time { opacity: .55; font-size: 11px; white-space: nowrap; flex-shrink: 0; }
+  .hi-server {
+    opacity: .85;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    text-align: right;
+  }
+  .hi-del {
+    background: none; border: none;
+    color: #64748b;
+    font-size: 20px; cursor: pointer;
+    padding: 0 4px; border-radius: 4px;
+    line-height: 1; flex-shrink: 0;
+    transition: color .15s, background .15s;
+    font-family: inherit;
+  }
+  .hi-del:hover { color: #ef4444; background: rgba(239, 68, 68, .1); }
+
+  .hi-isp {
+    font-size: 11px;
+    opacity: .5;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .hi-isp .hi-ip { color: #93c5fd; font-family: 'SF Mono', Menlo, monospace; }
+  .hi-isp .hi-dot { opacity: .4; margin: 0 4px; }
+
+  .hi-stats {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    margin-top: 2px;
+  }
+  .hi-stats span { white-space: nowrap; }
+  .hi-dl { color: #93c5fd; }
+  .hi-ul { color: #c4b5fd; }
+  .hi-ping { color: #86efac; }
+  .hi-jitter { color: #fcd34d; }
+
+  .empty { text-align: center; padding: 28px 12px; opacity: .45; font-size: 13px; font-style: italic; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🚀 Speed Test</h1>
+
+  <!-- ===== Info Koneksi ===== -->
+  <div class="conn-card">
+    <div class="conn-info">
+      <div class="conn-row">
+        <span class="conn-label">IP</span>
+        <span class="conn-value" id="ipValue">Memuat…</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-label">ISP</span>
+        <span class="conn-value conn-isp" id="ispValue">Memuat…</span>
+      </div>
+    </div>
+    <button class="conn-refresh" id="refreshConnBtn" title="Muat ulang info koneksi">⟳</button>
+  </div>
+
+  <!-- ===== Server + Satuan ===== -->
+  <div class="settings-row">
+    <select id="serverSelect" class="server-select"></select>
+    <div class="unit-toggle" role="group" aria-label="Satuan kecepatan">
+      <button type="button" data-unit="Mbps">Mbps</button>
+      <button type="button" data-unit="MBps">MB/s</button>
+    </div>
+  </div>
+
+  <div class="gauge-wrap">
+    <svg class="gauge" viewBox="0 0 200 200">
+      <defs>
+        <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#3b82f6"/>
+          <stop offset="100%" stop-color="#a855f7"/>
+        </linearGradient>
+      </defs>
+      <circle class="bg" cx="100" cy="100" r="85" stroke-dasharray="400.55 534.07" />
+      <circle class="fg" id="arc" cx="100" cy="100" r="85"
+              stroke-dasharray="400.55 534.07" stroke-dashoffset="400.55" />
+    </svg>
+    <div class="center-value">
+      <div class="value" id="value">0</div>
+      <div class="unit" id="unit">Mbps</div>
+      <div class="label" id="phase">Siap</div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="v" id="ping">--</div><div class="l">Ping</div></div>
+    <div class="stat"><div class="v" id="download">--</div><div class="l">Download</div></div>
+    <div class="stat"><div class="v" id="upload">--</div><div class="l">Upload</div></div>
+  </div>
+
+  <button id="startBtn">Mulai Test</button>
+
+  <div class="history-section">
+    <div class="history-header">
+      <h2>Riwayat</h2>
+      <button id="clearHistoryBtn" class="clear-btn">Hapus Semua</button>
+    </div>
+    <div id="historyList" class="history-list"></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   1. SERVER LIST
+   ========================================================= */
+const SERVERS = [
+  {
+    id: 'cloudflare',
+    name: 'Cloudflare (Auto / Anycast)',
+    region: 'Global', icon: '🌐',
+    pingUrl:    (r) => `https://speed.cloudflare.com/__down?bytes=1&r=${r}`,
+    downloadUrl:(bytes,r) => `https://speed.cloudflare.com/__down?bytes=${bytes}&r=${r}`,
+    uploadUrl:  () => `https://speed.cloudflare.com/__up`,
+    downloadBytes: 500_000_000,
+    uploadBytes:   10_000_000,
+  },
+  {
+    id: 'librespeed',
+    name: 'LibreSpeed Demo',
+    region: 'Global', icon: '🟢',
+    pingUrl:    (r) => `https://librespeed.org/backend/empty.php?r=${r}`,
+    downloadUrl:(bytes,r) => `https://librespeed.org/backend/garbage.php?ckSize=${Math.ceil(bytes/1_000_000)}&r=${r}`,
+    uploadUrl:  () => `https://librespeed.org/backend/empty.php`,
+    downloadBytes: 200_000_000,
+    uploadBytes:   8_000_000,
+  },
+];
+
+/* =========================================================
+   2. KONSTANTA & REFS
+   ========================================================= */
+const ARC_LEN = 400.55;
+const GAUGE_START_MAX = 100;
+const HISTORY_KEY = 'speedtest_history_v1';
+const IP_CACHE_KEY = 'speedtest_ip_info_v1';
+const UNIT_KEY = 'speedtest_unit';
+const MAX_HISTORY = 30;
+
+const els = {
+  arc: document.getElementById('arc'),
+  value: document.getElementById('value'),
+  unit: document.getElementById('unit'),
+  phase: document.getElementById('phase'),
+  ping: document.getElementById('ping'),
+  download: document.getElementById('download'),
+  upload: document.getElementById('upload'),
+  startBtn: document.getElementById('startBtn'),
+  serverSel: document.getElementById('serverSelect'),
+  historyList: document.getElementById('historyList'),
+  clearBtn: document.getElementById('clearHistoryBtn'),
+  ipValue: document.getElementById('ipValue'),
+  ispValue: document.getElementById('ispValue'),
+  refreshConnBtn: document.getElementById('refreshConnBtn'),
+  unitBtns: document.querySelectorAll('.unit-toggle button'),
+};
+
+let gaugeMax = GAUGE_START_MAX;
+let lastGaugeMbps = 0;
+let connInfo = null;   // cache IP/ISP di memori
+
+/* =========================================================
+   3. SATUAN (Mbps / MB/s)
+   ========================================================= */
+let currentUnit = localStorage.getItem(UNIT_KEY) === 'MBps' ? 'MBps' : 'Mbps';
+
+function getUnitLabel() {
+  return currentUnit === 'MBps' ? 'MB/s' : 'Mbps';
+}
+/** mbps => string angka (tanpa unit) sesuai satuan aktif */
+function formatSpeed(mbps) {
+  if (mbps == null) return '--';
+  const v = currentUnit === 'MBps' ? mbps / 8 : mbps;
+  return v.toFixed(2);
+}
+/** Update tombol toggle aktif */
+function syncUnitButtons() {
+  els.unitBtns.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.unit === currentUnit);
+  });
+}
+/** Render ulang semua angka ketika satuan berubah */
+function applyUnitToUI() {
+  renderGaugeValue();
+  renderStat('ping');
+  renderStat('download');
+  renderStat('upload');
+  renderHistory();
+}
+els.unitBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (els.startBtn.disabled) return;      // jangan ganti satuan saat test jalan
+    const u = btn.dataset.unit;
+    if (u === currentUnit) return;
+    currentUnit = u;
+    localStorage.setItem(UNIT_KEY, u);
+    syncUnitButtons();
+    applyUnitToUI();
+  });
+});
+
+/* =========================================================
+   4. HELPER
+   ========================================================= */
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+/* =========================================================
+   5. GAUGE
+   ========================================================= */
+function renderGaugeValue() {
+  const v = currentUnit === 'MBps' ? lastGaugeMbps / 8 : lastGaugeMbps;
+  els.value.textContent = v === 0 ? '0' : (v < 10 ? v.toFixed(2) : v.toFixed(1));
+  els.unit.textContent = getUnitLabel();
+}
+function setGauge(mbps) {
+  lastGaugeMbps = mbps;
+  if (mbps > gaugeMax) gaugeMax = mbps > 1000 ? 2000 : mbps > 500 ? 1000 : 500;
+  const pct = Math.min(mbps / gaugeMax, 1);
+  els.arc.style.strokeDashoffset = ARC_LEN * (1 - pct);
+  renderGaugeValue();
+}
+function setPhase(text) { els.phase.textContent = text; }
+function resetGauge() {
+  gaugeMax = GAUGE_START_MAX;
+  lastGaugeMbps = 0;
+  els.arc.style.transition = 'none';
+  els.arc.style.strokeDashoffset = ARC_LEN;
+  void els.arc.getBoundingClientRect();
+  els.arc.style.transition = 'stroke-dashoffset .2s ease';
+  renderGaugeValue();
+}
+
+/* =========================================================
+   6. STATS
+   ========================================================= */
+const statsRaw = { ping: null, download: null, upload: null };
+
+function renderStat(name) {
+  const v = statsRaw[name];
+  const el = els[name];
+  if (v == null) { el.textContent = '--'; return; }
+  if (name === 'ping') el.textContent = Math.round(v) + ' ms';
+  else el.textContent = formatSpeed(v) + ' ' + getUnitLabel();
+}
+function setStat(name, value) { statsRaw[name] = value; renderStat(name); }
+function resetStats() {
+  statsRaw.ping = statsRaw.download = statsRaw.upload = null;
+  renderStat('ping'); renderStat('download'); renderStat('upload');
+}
+
+/* =========================================================
+   7. IP + ISP LOOKUP
+   ========================================================= */
+async function fetchIPInfo() {
+  // Cache 30 menit
+  const cached = sessionStorage.getItem(IP_CACHE_KEY);
+  if (cached) {
+    try {
+      const obj = JSON.parse(cached);
+      if (obj && obj.ip && obj.ts && Date.now() - obj.ts < 30 * 60 * 1000) return obj;
+    } catch {}
+  }
+
+  // Utama: ipapi.co
+  try {
+    const res = await fetch('https://ipapi.co/json/', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`ipapi.co HTTP ${res.status}`);
+    const d = await res.json();
+    if (d && d.ip) {
+      return {
+        ip: d.ip,
+        isp: d.org || d.isp || d.asn || 'Tidak diketahui',
+        country: d.country_name || d.country || '',
+        city: d.city || '',
+        ts: Date.now(),
+      };
+    }
+    throw new Error('ipapi.co: field ip kosong');
+  } catch (e) {
+    console.warn('ipapi.co gagal, fallback ke ipwho.is:', e);
+  }
+
+  // Fallback: ipwho.is
+  try {
+    const res = await fetch('https://ipwho.is/', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`ipwho.is HTTP ${res.status}`);
+    const d = await res.json();
+    if (d && d.success && d.ip) {
+      return {
+        ip: d.ip,
+        isp: (d.connection && (d.connection.isp || d.connection.org)) || 'Tidak diketahui',
+        country: d.country || '',
+        city: d.city || '',
+        ts: Date.now(),
+      };
+    }
+    throw new Error('ipwho.is: response tidak valid');
+  } catch (e) {
+    console.warn('ipwho.is gagal:', e);
+  }
+  return null;
+}
+
+async function renderIPInfo(forceRefresh = false) {
+  if (forceRefresh) sessionStorage.removeItem(IP_CACHE_KEY);
+  els.refreshConnBtn.disabled = true;
+  els.ipValue.textContent = 'Memuat…';
+  els.ispValue.textContent = 'Memuat…';
+
+  const info = await fetchIPInfo();
+
+  if (info) {
+    connInfo = info;
+    els.ipValue.textContent = info.ip;
+    els.ispValue.textContent = info.isp || 'Tidak diketahui';
+    els.ispValue.title = [info.isp, info.city, info.country].filter(Boolean).join(' · ');
+    sessionStorage.setItem(IP_CACHE_KEY, JSON.stringify(info));
+  } else {
+    els.ipValue.textContent = 'Gagal dimuat';
+    els.ispValue.textContent = '—';
+  }
+  els.refreshConnBtn.disabled = false;
+}
+
+/* =========================================================
+   8. PING
+   ========================================================= */
+async function measurePing(server, samples = 10) {
+  const arr = [];
+  for (let i = 0; i < samples; i++) {
+    const t0 = performance.now();
+    try {
+      await fetch(server.pingUrl(Math.random()), { cache: 'no-store' });
+      arr.push(performance.now() - t0);
+    } catch (e) { console.warn('ping sample gagal:', e); }
+  }
+  if (!arr.length) return { avg: null, jitter: null };
+  const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+  let js = 0;
+  for (let i = 1; i < arr.length; i++) js += Math.abs(arr[i] - arr[i - 1]);
+  return { avg, jitter: arr.length > 1 ? js / (arr.length - 1) : 0 };
+}
+
+/* =========================================================
+   9. DOWNLOAD
+   ========================================================= */
+async function measureDownload(server, durationMs = 10000) {
+  const url = server.downloadUrl(server.downloadBytes, Math.random());
+  const start = performance.now();
+  let received = 0;
+  let lastUpdate = start;
+  const controller = new AbortController();
+  const tId = setTimeout(() => controller.abort(), durationMs + 5000);
+
+  try {
+    const resp = await fetch(url, { cache: 'no-store', signal: controller.signal });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const reader = resp.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.length;
+      const now = performance.now();
+      if (now - start > durationMs) { try { await reader.cancel(); } catch {} break; }
+      if (now - lastUpdate > 150) {
+        setGauge((received * 8) / ((now - start) / 1000) / 1e6);
+        lastUpdate = now;
+      }
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') throw e;
+  } finally {
+    clearTimeout(tId);
+  }
+  return (received * 8) / ((performance.now() - start) / 1000) / 1e6;
+}
+
+/* =========================================================
+   10. UPLOAD
+   ========================================================= */
+function generateRandomData(size) {
+  const data = new Uint8Array(size);
+  const chunk = 65536;
+  for (let i = 0; i < size; i += chunk) {
+    crypto.getRandomValues(data.subarray(i, Math.min(i + chunk, size)));
+  }
+  return data;
+}
+function measureUpload(server) {
+  return new Promise((resolve, reject) => {
+    const size = server.uploadBytes;
+    const data = generateRandomData(size);
+    const xhr = new XMLHttpRequest();
+    const start = performance.now();
+    let lastUpdate = start;
+    xhr.upload.addEventListener('progress', (e) => {
+      if (!e.lengthComputable) return;
+      const now = performance.now();
+      if (now - lastUpdate > 150) {
+        setGauge((e.loaded * 8) / ((now - start) / 1000) / 1e6);
+        lastUpdate = now;
+      }
+    });
+    xhr.addEventListener('load', () =>
+      resolve((size * 8) / ((performance.now() - start) / 1000) / 1e6));
+    xhr.addEventListener('error', () => reject(new Error('Upload gagal (mungkin CORS/diblokir)')));
+    xhr.addEventListener('timeout', () => reject(new Error('Upload timeout')));
+    xhr.timeout = 30000;
+    xhr.open('POST', server.uploadUrl());
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.send(data);
+  });
+}
+
+/* =========================================================
+   11. HISTORY
+   ========================================================= */
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+  catch { return []; }
+}
+function saveHistory(h) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(0, MAX_HISTORY)));
+}
+function addHistoryEntry(entry) {
+  const h = loadHistory();
+  h.unshift({ ...entry, id: Date.now() + Math.random(), date: new Date().toISOString() });
+  saveHistory(h);
+  renderHistory();
+}
+function deleteHistoryEntry(id) {
+  saveHistory(loadHistory().filter(e => e.id !== id));
+  renderHistory();
+}
+function clearHistory() {
+  if (!loadHistory().length) return;
+  if (!confirm('Hapus semua riwayat?')) return;
+  localStorage.removeItem(HISTORY_KEY);
+  renderHistory();
+}
+function formatTime(iso) {
+  const d = new Date(iso);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return 'Baru saja';
+  if (diff < 3600) return `${Math.floor(diff/60)} mnt lalu`;
+  if (diff < 86400) return `${Math.floor(diff/3600)} jam lalu`;
+  if (diff < 604800) return `${Math.floor(diff/86400)} hari lalu`;
+  return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function renderHistory() {
+  const h = loadHistory();
+  els.clearBtn.disabled = h.length === 0;
+
+  if (!h.length) {
+    els.historyList.innerHTML = '<div class="empty">Belum ada riwayat. Jalankan test pertamamu!</div>';
+    return;
+  }
+
+  const bestDl = Math.max(...h.map(e => e.download || 0));
+  const unit = getUnitLabel();
+
+  els.historyList.innerHTML = h.map(e => {
+    const isBest = e.download === bestDl && h.length > 1;
+
+    // IP · ISP
+    const metaParts = [];
+    if (e.ip)  metaParts.push(`<span class="hi-ip">${escapeHtml(e.ip)}</span>`);
+    if (e.isp) metaParts.push(`<span>${escapeHtml(e.isp)}</span>`);
+    const ispLine = metaParts.length
+      ? `<div class="hi-isp">${metaParts.join('<span class="hi-dot">·</span>')}</div>`
+      : '';
+
+    // Jitter fallback "-" untuk entri lama yang belum punya field ini
+    const jitterStr = (e.jitter != null && !isNaN(e.jitter))
+      ? `±${Math.round(e.jitter)} ms`
+      : '—';
+
+    return `
+      <div class="history-item">
+        <div class="hi-top">
+          <span class="hi-time">${formatTime(e.date)}</span>
+          <span class="hi-server" title="${escapeHtml(e.server)}">${escapeHtml(e.server)}${isBest ? ' 🏆' : ''}</span>
+          <button class="hi-del" data-id="${e.id}" title="Hapus">×</button>
+        </div>
+        ${ispLine}
+        <div class="hi-stats">
+          <span class="hi-dl">⬇ ${formatSpeed(e.download)} ${unit}</span>
+          <span class="hi-ul">⬆ ${formatSpeed(e.upload)} ${unit}</span>
+          <span class="hi-ping">📶 ${Math.round(e.ping || 0)} ms</span>
+          <span class="hi-jitter" title="Jitter (variasi ping)">📊 ${jitterStr}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+els.historyList.addEventListener('click', (e) => {
+  const btn = e.target.closest('.hi-del');
+  if (!btn) return;
+  deleteHistoryEntry(Number(btn.dataset.id));
+});
+els.clearBtn.addEventListener('click', clearHistory);
+
+/* =========================================================
+   12. SERVER SELECT
+   ========================================================= */
+function populateServers() {
+  els.serverSel.innerHTML = SERVERS.map(s =>
+    `<option value="${s.id}">${s.icon} ${s.name} — ${s.region}</option>`
+  ).join('');
+  const last = localStorage.getItem('speedtest_last_server');
+  if (last && SERVERS.some(s => s.id === last)) els.serverSel.value = last;
+}
+els.serverSel.addEventListener('change', () => {
+  localStorage.setItem('speedtest_last_server', els.serverSel.value);
+});
+
+/* =========================================================
+   13. FLOW UTAMA
+   ========================================================= */
+async function runTest() {
+  const server = SERVERS.find(s => s.id === els.serverSel.value);
+  if (!server) return;
+
+  // Pastikan IP/ISP sudah siap supaya bisa disimpan ke riwayat
+  if (!connInfo) {
+    setPhase('Mengambil info koneksi…');
+    await renderIPInfo();
+  }
+
+  els.startBtn.disabled = true;
+  els.serverSel.disabled = true;
+  els.unitBtns.forEach(b => b.disabled = true);
+
+  resetStats();
+  resetGauge();
+
+  try {
+    setPhase(`Ping ke ${server.name}…`);
+    const pingRes = await measurePing(server);
+    if (pingRes.avg !== null) {
+      setStat('ping', pingRes.avg);
+      setPhase(`Jitter ±${Math.round(pingRes.jitter)}ms`);
+    }
+    await sleep(400);
+
+    setPhase(`Download (${server.region})…`);
+    resetGauge();
+    const dl = await measureDownload(server);
+    setStat('download', dl);
+    setGauge(dl);
+    await sleep(400);
+
+    setPhase(`Upload (${server.region})…`);
+    resetGauge();
+    const ul = await measureUpload(server);
+    setStat('upload', ul);
+    setGauge(ul);
+
+    setPhase('Selesai ✓');
+
+    // Simpan ke riwayat (lengkap dengan IP, ISP, jitter)
+    addHistoryEntry({
+      server: server.name,
+      serverId: server.id,
+      ip: connInfo ? connInfo.ip : null,
+      isp: connInfo ? connInfo.isp : null,
+      ping: pingRes.avg ?? 0,
+      jitter: pingRes.jitter ?? 0,
+      download: dl,
+      upload: ul,
+    });
+  } catch (err) {
+    console.error(err);
+    setPhase('Gagal: ' + err.message);
+  } finally {
+    els.startBtn.disabled = false;
+    els.serverSel.disabled = false;
+    els.unitBtns.forEach(b => b.disabled = false);
+  }
+}
+
+/* =========================================================
+   14. INIT
+   ========================================================= */
+syncUnitButtons();
+populateServers();
+renderHistory();
+renderStat('ping'); renderStat('download'); renderStat('upload');
+renderIPInfo();
+els.startBtn.addEventListener('click', runTest);
+els.refreshConnBtn.addEventListener('click', () => renderIPInfo(true));
+</script>
+</body>
+</html>
