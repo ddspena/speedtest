@@ -101,8 +101,28 @@
   }
   .unit-toggle button:disabled { opacity: .4; cursor: not-allowed; }
 
-  /* ===== Gauge ===== */
-  .gauge-wrap { position: relative; width: 320px; height: 320px; margin: 0 auto 24px; }
+  /* ===== Gauge (hidden by default, muncul saat .active) ===== */
+  .gauge-wrap {
+    position: relative;
+    width: 320px;
+    max-height: 0;
+    margin: 0 auto;
+    overflow: hidden;
+    opacity: 0;
+    transform: scale(0.9);
+    pointer-events: none;
+    transition: max-height .45s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity .3s ease,
+                transform .3s ease,
+                margin .45s ease;
+  }
+  .gauge-wrap.active {
+    max-height: 340px;
+    height: 320px;
+    opacity: 1;
+    transform: scale(1);
+    margin: 0 auto 24px;
+  }
   .gauge { width: 100%; height: 100%; transform: rotate(135deg); }
   .gauge circle { fill: none; stroke-width: 14; }
   .gauge .bg { stroke: #1e293b; }
@@ -255,7 +275,8 @@
     </div>
   </div>
 
-  <div class="gauge-wrap">
+  <!-- ===== Gauge (hidden by default) ===== -->
+  <div class="gauge-wrap" id="gaugeWrap">
     <svg class="gauge" viewBox="0 0 200 200">
       <defs>
         <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -344,6 +365,7 @@ const els = {
   ispValue: document.getElementById('ispValue'),
   refreshConnBtn: document.getElementById('refreshConnBtn'),
   unitBtns: document.querySelectorAll('.unit-toggle button'),
+  gaugeWrap: document.getElementById('gaugeWrap'),
 };
 
 let gaugeMax = GAUGE_START_MAX;
@@ -358,19 +380,16 @@ let currentUnit = localStorage.getItem(UNIT_KEY) === 'MBps' ? 'MBps' : 'Mbps';
 function getUnitLabel() {
   return currentUnit === 'MBps' ? 'MB/s' : 'Mbps';
 }
-/** mbps => string angka (tanpa unit) sesuai satuan aktif */
 function formatSpeed(mbps) {
   if (mbps == null) return '--';
   const v = currentUnit === 'MBps' ? mbps / 8 : mbps;
   return v.toFixed(2);
 }
-/** Update tombol toggle aktif */
 function syncUnitButtons() {
   els.unitBtns.forEach(btn => {
     btn.classList.toggle('active', btn.dataset.unit === currentUnit);
   });
 }
-/** Render ulang semua angka ketika satuan berubah */
 function applyUnitToUI() {
   renderGaugeValue();
   renderStat('ping');
@@ -380,7 +399,7 @@ function applyUnitToUI() {
 }
 els.unitBtns.forEach(btn => {
   btn.addEventListener('click', () => {
-    if (els.startBtn.disabled) return;      // jangan ganti satuan saat test jalan
+    if (els.startBtn.disabled) return;
     const u = btn.dataset.unit;
     if (u === currentUnit) return;
     currentUnit = u;
@@ -448,7 +467,6 @@ function resetStats() {
    7. IP + ISP LOOKUP
    ========================================================= */
 async function fetchIPInfo() {
-  // Cache 30 menit
   const cached = sessionStorage.getItem(IP_CACHE_KEY);
   if (cached) {
     try {
@@ -457,7 +475,6 @@ async function fetchIPInfo() {
     } catch {}
   }
 
-  // Utama: ipapi.co
   try {
     const res = await fetch('https://ipapi.co/json/', { cache: 'no-store' });
     if (!res.ok) throw new Error(`ipapi.co HTTP ${res.status}`);
@@ -476,7 +493,6 @@ async function fetchIPInfo() {
     console.warn('ipapi.co gagal, fallback ke ipwho.is:', e);
   }
 
-  // Fallback: ipwho.is
   try {
     const res = await fetch('https://ipwho.is/', { cache: 'no-store' });
     if (!res.ok) throw new Error(`ipwho.is HTTP ${res.status}`);
@@ -659,7 +675,6 @@ function renderHistory() {
   els.historyList.innerHTML = h.map(e => {
     const isBest = e.download === bestDl && h.length > 1;
 
-    // IP · ISP
     const metaParts = [];
     if (e.ip)  metaParts.push(`<span class="hi-ip">${escapeHtml(e.ip)}</span>`);
     if (e.isp) metaParts.push(`<span>${escapeHtml(e.isp)}</span>`);
@@ -667,7 +682,6 @@ function renderHistory() {
       ? `<div class="hi-isp">${metaParts.join('<span class="hi-dot">·</span>')}</div>`
       : '';
 
-    // Jitter fallback "-" untuk entri lama yang belum punya field ini
     const jitterStr = (e.jitter != null && !isNaN(e.jitter))
       ? `±${Math.round(e.jitter)} ms`
       : '—';
@@ -718,20 +732,23 @@ async function runTest() {
   const server = SERVERS.find(s => s.id === els.serverSel.value);
   if (!server) return;
 
-  // Pastikan IP/ISP sudah siap supaya bisa disimpan ke riwayat
-  if (!connInfo) {
-    setPhase('Mengambil info koneksi…');
-    await renderIPInfo();
-  }
-
+  // Lock UI + TAMPILKAN gauge
   els.startBtn.disabled = true;
   els.serverSel.disabled = true;
   els.unitBtns.forEach(b => b.disabled = true);
-
+  els.gaugeWrap.classList.add('active');
   resetStats();
   resetGauge();
+  setPhase('Menyiapkan…');
 
   try {
+    // Pastikan info koneksi siap
+    if (!connInfo) {
+      setPhase('Mengambil info koneksi…');
+      await renderIPInfo();
+    }
+
+    /* --- PING --- */
     setPhase(`Ping ke ${server.name}…`);
     const pingRes = await measurePing(server);
     if (pingRes.avg !== null) {
@@ -740,6 +757,7 @@ async function runTest() {
     }
     await sleep(400);
 
+    /* --- DOWNLOAD --- */
     setPhase(`Download (${server.region})…`);
     resetGauge();
     const dl = await measureDownload(server);
@@ -747,6 +765,7 @@ async function runTest() {
     setGauge(dl);
     await sleep(400);
 
+    /* --- UPLOAD --- */
     setPhase(`Upload (${server.region})…`);
     resetGauge();
     const ul = await measureUpload(server);
@@ -755,7 +774,6 @@ async function runTest() {
 
     setPhase('Selesai ✓');
 
-    // Simpan ke riwayat (lengkap dengan IP, ISP, jitter)
     addHistoryEntry({
       server: server.name,
       serverId: server.id,
@@ -766,10 +784,16 @@ async function runTest() {
       download: dl,
       upload: ul,
     });
+
+    // Biar user sempat lihat hasil akhir sebelum gauge hilang
+    await sleep(1200);
   } catch (err) {
     console.error(err);
     setPhase('Gagal: ' + err.message);
+    await sleep(2500);
   } finally {
+    // SEMBUNYIKAN gauge lagi
+    els.gaugeWrap.classList.remove('active');
     els.startBtn.disabled = false;
     els.serverSel.disabled = false;
     els.unitBtns.forEach(b => b.disabled = false);
